@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"net"
 )
 
 var OnDebug = false
@@ -263,7 +264,13 @@ func (orm *Model) FindMap() (resultsSlice []map[string][]byte, err error) {
 				str = strconv.FormatFloat(vv.Float(), 'f', -1, 64)
 				result[key] = []byte(str)
 			case reflect.Slice:
-				if aa.Elem().Kind() == reflect.Uint8 {
+				if aa.String() == "net.IP" {
+					str = rawValue.Interface().(net.IP).String()
+					result[key] = []byte(str)
+				} else if aa.String() == "net.HardwareAddr" {
+					str = rawValue.Interface().(net.HardwareAddr).String()
+					result[key] = []byte(str)
+				} else if aa.Elem().Kind() == reflect.Uint8 {
 					result[key] = rawValue.Interface().([]byte)
 					break
 				}
@@ -272,8 +279,15 @@ func (orm *Model) FindMap() (resultsSlice []map[string][]byte, err error) {
 				result[key] = []byte(str)
 			//时间类型	
 			case reflect.Struct:
-				str = rawValue.Interface().(time.Time).Format("2006-01-02 15:04:05.000 -0700")
-				result[key] = []byte(str)
+				if aa.String() == "time.Time" {
+					str = rawValue.Interface().(time.Time).Format("2006-01-02 15:04:05.000 -0700")
+					result[key] = []byte(str)
+				}
+			case reflect.Ptr:
+				if aa.String() == "*net.IPNet" {
+					str = rawValue.Interface().(*net.IPNet).String()
+					result[key] = []byte(str)
+				}			
 			case reflect.Bool:
 				if (vv.Bool()) {
 				  result[key] = []byte("1")

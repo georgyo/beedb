@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"net"
 )
 
 func getTypeName(obj interface{}) (typestr string) {
@@ -83,7 +84,17 @@ func scanMapIntoStruct(obj interface{}, objMap map[string][]byte) error {
 
 		switch structField.Type().Kind() {
 		case reflect.Slice:
-			v = data
+			if structField.Type().String() == "net.IP" {
+				v = net.ParseIP(string(data))
+			} else if structField.Type().String() == "net.HardwareAddr" {
+				x, err := net.ParseMAC(string(data))
+				if err != nil {
+					return errors.New("arg " + key + " as net.HardwareAddr: " + err.Error())
+				}
+				v = x
+			} else {
+				v = data
+			}
 		case reflect.String:
 			v = string(data)
 		case reflect.Bool:
@@ -114,20 +125,29 @@ func scanMapIntoStruct(obj interface{}, objMap map[string][]byte) error {
 			v = x
 		//Now only support Time type
 		case reflect.Struct:
-			if structField.Type().String() != "time.Time" {
+			if structField.Type().String() == "time.Time" {
+				x, err := time.Parse("2006-01-02 15:04:05", string(data))
+				if err != nil {
+					x, err = time.Parse("2006-01-02 15:04:05.000 -0700", string(data))
+
+					if err != nil {
+						return errors.New("unsupported time format: " + string(data))
+					}
+				}
+				v = x
+			} else {
 				return errors.New("unsupported struct type in Scan: " + structField.Type().String())
 			}
-
-			x, err := time.Parse("2006-01-02 15:04:05", string(data))
-			if err != nil {
-				x, err = time.Parse("2006-01-02 15:04:05.000 -0700", string(data))
-
+		case reflect.Ptr:
+			if structField.Type().String()  == "*net.IPNet" {
+				_, x, err := net.ParseCIDR(string(data))
 				if err != nil {
-					return errors.New("unsupported time format: " + string(data))
+					return errors.New("arg " + key + " as *net.IPNet: " + err.Error())
 				}
+				v = x
+			} else {
+				return errors.New("unsupported pointer type in Scan: " + structField.Type().String())
 			}
-
-			v = x
 		default:
 			return errors.New("unsupported type in Scan: " + reflect.TypeOf(v).String())
 		}
